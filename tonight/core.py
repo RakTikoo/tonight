@@ -17,7 +17,7 @@ import csv
 import math
 import re
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
@@ -211,6 +211,11 @@ class TargetResult:
     window_start: Time | None = None
     window_end: Time | None = None
     window_hours: float = 0.0
+    # Every separate stretch above the airmass limit, in time order.
+    # window_start/window_end/window_hours above describe the longest
+    # stretch (the ranking uses it, as before); windows lists them all.
+    windows: list[tuple[Time, Time]] = field(default_factory=list)
+    total_window_hours: float = 0.0
     min_airmass: float | None = None
     best_time: Time | None = None
     moon_sep_deg: float | None = None
@@ -253,15 +258,20 @@ def _is_missing(t) -> bool:
         return False
 
 
-def _longest_run(mask: np.ndarray) -> tuple[int, int] | None:
-    """(start, end) inclusive indices of the longest True run, or None."""
+def _all_runs(mask: np.ndarray) -> list[tuple[int, int]]:
+    """All (start, end) inclusive index pairs of True runs, in order."""
     padded = np.concatenate(([False], mask, [False]))
     edges = np.flatnonzero(np.diff(padded.astype(int)))
     starts, ends = edges[0::2], edges[1::2]  # ends exclusive
-    if len(starts) == 0:
+    return [(int(s), int(e) - 1) for s, e in zip(starts, ends)]
+
+
+def _longest_run(mask: np.ndarray) -> tuple[int, int] | None:
+    """(start, end) inclusive indices of the longest True run, or None."""
+    runs = _all_runs(mask)
+    if not runs:
         return None
-    k = int(np.argmax(ends - starts))
-    return int(starts[k]), int(ends[k]) - 1
+    return max(runs, key=lambda r: r[1] - r[0])
 
 
 def _cross_time(t_a: Time, t_b: Time, alt_a: float, alt_b: float,
@@ -280,8 +290,8 @@ def _plan_target(observer: Observer, site: Site, target: Target,
     alt = np.asarray(altaz.alt.deg, dtype=float)
     am = np.asarray(altaz.secz.value, dtype=float)
     ok = np.isfinite(am) & (am > 0.0) & (am < AIRMASS_LIMIT)
-    run = _longest_run(ok)
-    if run is None:
+    runs = _all_runs(ok)
+    if not runs:
         dec = float(target.coord.dec.degree)
         highest_ever = 90.0 - abs(site.lat - dec)
         if highest_ever <= ALT_LIMIT_DEG:
@@ -297,11 +307,17 @@ def _plan_target(observer: Observer, site: Site, target: Target,
             )
         return TargetResult(name=target.name, priority=target.priority,
                             observable=False, reason=reason)
-    s, e = run
-    start = times[s] if s == 0 else _cross_time(times[s - 1], times[s], alt[s - 1], alt[s])
-    end = times[e] if e == len(times) - 1 else _cross_time(times[e], times[e + 1], alt[e], alt[e + 1])
-    seg = am[s:e + 1]
-    k = s + int(np.argmin(seg))
+    def _bounds(s: int, e: int) -> tuple[Time, Time]:
+        start = times[s] if s == 0 else _cross_time(times[s - 1], times[s], alt[s - 1], alt[s])
+        end = times[e] if e == len(times) - 1 else _cross_time(times[e], times[e + 1], alt[e], alt[e + 1])
+        return start, end
+
+    windows = [_bounds(s, e) for s, e in runs]
+    s, e = max(runs, key=lambda r: r[1] - r[0])
+    start, end = _bounds(s, e)
+    # Best time is the lowest airmass anywhere the target is observable
+    # tonight — across all windows, not just the longest.
+    k = int(np.argmin(np.where(ok, am, np.inf)))
     best_time = times[k]
     return TargetResult(
         name=target.name,
@@ -310,6 +326,10 @@ def _plan_target(observer: Observer, site: Site, target: Target,
         window_start=start,
         window_end=end,
         window_hours=float((end - start).to_value(u.hour)),
+        windows=windows,
+        total_window_hours=float(
+            sum((we - ws).to_value(u.hour) for ws, we in windows)
+        ),
         min_airmass=float(am[k]),
         best_time=best_time,
         moon_sep_deg=moon_separation_deg(target.coord, best_time, site.location),
@@ -444,6 +464,7 @@ def write_plan_csv(plan: NightPlan, path: str) -> None:
             "window_start_local_solar", "window_end_local_solar",
             "window_hours", "min_airmass", "best_time_utc",
             "moon_separation_deg", "moon_illumination_pct",
+            "window_count", "total_window_hours",
         ])
         illum_pct = "" if plan.moon_illumination is None else f"{plan.moon_illumination * 100:.0f}"
         rank = 0
@@ -456,11 +477,12 @@ def write_plan_csv(plan: NightPlan, path: str) -> None:
                     _fmt_local(r.window_start, site), _fmt_local(r.window_end, site),
                     f"{r.window_hours:.2f}", f"{r.min_airmass:.2f}",
                     _fmt_dt(r.best_time), f"{r.moon_sep_deg:.1f}", illum_pct,
+                    len(r.windows), f"{r.total_window_hours:.2f}",
                 ])
             else:
                 w.writerow([
                     "", r.name, f"{r.priority:g}", "unobservable", r.reason,
-                    "", "", "", "", "", "", "", "", illum_pct,
+                    "", "", "", "", "", "", "", "", illum_pct, "", "",
                 ])
 
 
@@ -509,9 +531,21 @@ def format_summary(plan: NightPlan) -> str:
     if observable:
         lines.append("Observe in this order:")
         for i, r in enumerate(observable[:5], start=1):
+            if len(r.windows) > 1:
+                spans = " and ".join(
+                    f"{_fmt_hm(ws)}->{_fmt_hm(we)}" for ws, we in r.windows
+                )
+                up_txt = (
+                    f"up {spans} UTC "
+                    f"({r.total_window_hours:.1f} h in {len(r.windows)} windows)"
+                )
+            else:
+                up_txt = (
+                    f"up {_fmt_hm(r.window_start)}->{_fmt_hm(r.window_end)} UTC"
+                    f" ({r.window_hours:.1f} h)"
+                )
             lines.append(
-                f" {i}. {r.name} — up {_fmt_hm(r.window_start)}->{_fmt_hm(r.window_end)} UTC"
-                f" ({r.window_hours:.1f} h), best airmass {r.min_airmass:.2f} at "
+                f" {i}. {r.name} — {up_txt}, best airmass {r.min_airmass:.2f} at "
                 f"{_fmt_hm(r.best_time)} UTC, Moon {r.moon_sep_deg:.0f} deg away"
             )
         if len(observable) > 5:

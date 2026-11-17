@@ -103,11 +103,13 @@ that must be exact, and treat the local column as a rough guide.
   site has mountains to the west, your real window is shorter.
 - **One night, one site, target list only.** No multi-night trips, no
   site-name lookup, no equipment or exposure planning.
-- **One window per target.** If a target is above airmass 2 in two
-  separate stretches of the same (long) night — it sets below
-  altitude 30° and rises again — only the longest stretch is
-  reported as its window, and the ranking uses that stretch only.
-  The second stretch is not shown.
+- **Ranking uses the longest window.** If a target is above airmass
+  2 in two separate stretches of the same night — it dips below
+  altitude 30° and rises again — every stretch is reported: the
+  summary lists each one, and the CSV adds `window_count` and
+  `total_window_hours` columns. But the ranking still uses the
+  longest single stretch, so a broken-up night does not outrank a
+  solid window of the same length.
 - **Polar continuous night is reported, not planned.** Where the Sun
   stays more than 18° below the horizon all day (polar winter) there
   is no single dusk-to-dawn night; the date is reported as a

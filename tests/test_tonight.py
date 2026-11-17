@@ -19,6 +19,8 @@ from astropy.time import Time
 from tonight.cli import main
 from tonight.core import (
     TonightError,
+    _all_runs,
+    format_summary,
     moon_separation_deg,
     parse_site,
     parse_targets,
@@ -286,6 +288,90 @@ class TestOutputFiles(unittest.TestCase):
             os.unlink(path)
             if os.path.exists(out_path):
                 os.unlink(out_path)
+
+
+class TestAllRuns(unittest.TestCase):
+    def test_no_runs(self):
+        self.assertEqual(_all_runs([False, False]), [])
+
+    def test_single_run(self):
+        self.assertEqual(_all_runs([False, True, True, False]), [(1, 2)])
+
+    def test_runs_at_edges_and_multiple(self):
+        mask = [True, True, False, True, False, True, True, True]
+        self.assertEqual(_all_runs(mask), [(0, 1), (3, 3), (5, 7)])
+
+
+class TestTwoWindows(unittest.TestCase):
+    """A near-pole target from a mid-latitude site dips below the
+    airmass limit around lower culmination and rises again, giving two
+    windows in one night. Reference case found by scanning the real
+    ephemeris: lat +40, lon 0, 2026-01-15, RA 285 deg, Dec +75 deg —
+    upper culmination altitude 55 deg, lower culmination 25 deg,
+    either side of the 30 deg (airmass 2) limit."""
+
+    NORTH_SITE = "40.0,0.0,0"
+    NORTH_DATE = "2026-01-15"
+    CSV = "name,ra,dec\nDipping Target,285.0,75.0\n"
+
+    def test_two_windows_are_all_reported(self):
+        plan = plan_for(self.CSV, site=self.NORTH_SITE, date=self.NORTH_DATE)
+        r = plan.results[0]
+        self.assertTrue(r.observable)
+        self.assertEqual(len(r.windows), 2)
+        # Windows are in time order and do not overlap.
+        self.assertLess(r.windows[0][1], r.windows[1][0])
+        # The headline window is the longest stretch; the total is more.
+        longest = max(
+            (we - ws).to_value(u.hour) for ws, we in r.windows
+        )
+        self.assertAlmostEqual(r.window_hours, longest, places=6)
+        self.assertAlmostEqual(
+            r.total_window_hours,
+            sum((we - ws).to_value(u.hour) for ws, we in r.windows),
+            places=6,
+        )
+        self.assertGreater(r.total_window_hours, r.window_hours)
+        # The headline start/end are one of the reported windows.
+        self.assertIn((r.window_start, r.window_end), r.windows)
+        # Best time (lowest airmass) falls inside a reported window.
+        self.assertTrue(
+            any(ws <= r.best_time <= we for ws, we in r.windows)
+        )
+
+    def test_summary_and_csv_show_both_windows(self):
+        plan = plan_for(self.CSV, site=self.NORTH_SITE, date=self.NORTH_DATE)
+        summary = format_summary(plan)
+        self.assertIn("in 2 windows", summary)
+        path = write_csv(self.CSV)
+        out_path = path + ".plan.csv"
+        try:
+            code, out, err = run_cli(
+                ["plan", path, "--site", self.NORTH_SITE,
+                 "--date", self.NORTH_DATE, "--out", out_path]
+            )
+            self.assertEqual(code, 0, err)
+            with open(out_path, encoding="utf-8") as fh:
+                rows = list(fh)
+            self.assertIn("window_count", rows[0])
+            self.assertIn("total_window_hours", rows[0])
+            fields = rows[1].strip().split(",")
+            self.assertEqual(fields[14], "2")  # window_count column
+            self.assertGreater(float(fields[15]), float(fields[9]))
+        finally:
+            os.unlink(path)
+            if os.path.exists(out_path):
+                os.unlink(out_path)
+
+    def test_single_window_target_reports_one_window(self):
+        plan = plan_for("name,ra,dec\nZenith Target,82.5,-31.0\n")
+        r = plan.results[0]
+        self.assertTrue(r.observable)
+        self.assertEqual(len(r.windows), 1)
+        self.assertAlmostEqual(r.total_window_hours, r.window_hours, places=6)
+        self.assertEqual(
+            (r.window_start, r.window_end), r.windows[0]
+        )
 
 
 if __name__ == "__main__":
