@@ -1,4 +1,4 @@
-# tonight
+# tonight — plan tonight's observing: which targets are up, when, and in what order
 
 **Give it a CSV of targets, an observing site and a date — get back a ranked observing plan for that night: when each target is up, how good it gets, and in what order to observe.**
 

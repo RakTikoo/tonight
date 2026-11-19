@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - name: RakTikoo
+title: "tonight: a ranked observing plan for one night at one site, from a CSV of targets"
+version: 0.1.1
+date-released: 2026-11-17
+license: MIT
+url: "https://github.com/RakTikoo/tonight"
+repository-code: "https://github.com/RakTikoo/tonight"
+abstract: >-
+  Builds a ranked observing plan for one night at one site from a CSV of
+  targets: each target's observable window (airmass under 2), minimum
+  airmass, best time and Moon separation, with plain reasons for the
+  targets that are not observable. Runs fully offline.
+keywords:
+  - astronomy
+  - observing planning
+  - astroplan
+  - visibility

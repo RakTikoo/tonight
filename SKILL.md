@@ -1,6 +1,6 @@
 ---
 name: tonight
-description: Plan one night of telescope observing from a CSV of targets (name, ra, dec, optional priority), an observing site given as coordinates and a date. It works out each target's observable window (airmass under 2), minimum airmass, best time and Moon separation, and returns a ranked plan with reasons for the targets that are not observable. Use when asked what is observable tonight, to plan an observing session, rank targets for a night, or find when a target is up from a site.
+description: Plan one night of telescope observing from a CSV of targets (name, ra, dec, optional priority), a site given as coordinates, and a date. It works out each target's observable window (airmass under 2), minimum airmass, best time and Moon separation, and returns a ranked plan with reasons for unobservable targets. Use when asked what is observable tonight, to plan an observing session, rank targets for a night, or find when a target is up from a site. Not for time conversion to BJD_TDB (use bjd), cross-matching catalogues (use epochmatch), or FITS night logs (use fitslog).
 license: MIT
 compatibility: Requires Python 3.10+ with Astropy and astroplan. Installing needs network access to GitHub; the tool itself runs fully offline (bundled IERS-B data, downloads disabled).
 ---
