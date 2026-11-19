@@ -13,6 +13,34 @@ Needs Python 3.10+; installs astropy and astroplan. Everything runs
 and Earth-rotation data comes from astropy's bundled IERS-B table
 (auto-download is switched off; see *Limits*).
 
+Or install the wheel straight from this repo's release assets (no package
+registry involved):
+
+```sh
+pip install https://github.com/RakTikoo/tonight/releases/download/v0.1.1/tonight-0.1.1-py3-none-any.whl
+```
+
+Or install from the git repo with pipx or uv:
+
+```sh
+pipx install git+https://github.com/RakTikoo/tonight.git@v0.1.1
+uv tool install --from git+https://github.com/RakTikoo/tonight.git@v0.1.1 tonight
+```
+
+With Homebrew (macOS/Linux):
+
+```sh
+brew tap RakTikoo/tools
+brew install RakTikoo/tools/tonight
+```
+
+With Scoop (Windows):
+
+```powershell
+scoop bucket add RakTikoo https://github.com/RakTikoo/scoop-bucket
+scoop install tonight
+```
+
 ## Usage
 
 ```console
