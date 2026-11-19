@@ -1,5 +1,7 @@
 # tonight — plan tonight's observing: which targets are up, when, and in what order
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/RakTikoo/tonight)
+
 **Give it a CSV of targets, an observing site and a date — get back a ranked observing plan for that night: when each target is up, how good it gets, and in what order to observe.**
 
 ## Install
@@ -40,6 +42,8 @@ With Scoop (Windows):
 scoop bucket add RakTikoo https://github.com/RakTikoo/scoop-bucket
 scoop install tonight
 ```
+
+**For agent users:** this repository ships a `SKILL.md` for AI agents. Install it with `npx skills add RakTikoo/tonight`.
 
 ## Usage
 
