@@ -123,6 +123,14 @@ that must be exact, and treat the local column as a rough guide.
 $ python3 run_tests.py
 ```
 
+## Use with an AI agent
+
+This repo ships a [SKILL.md](SKILL.md) written to the Agent Skills open
+standard. If your coding agent supports skills, point it at this repo and
+it can install tonight, run it on your target lists, and read the results
+for you. The skill works as documented when the repo is cloned under its
+real name (`tonight`) — the standard matches a skill to its folder name.
+
 ## License
 
 MIT — see `LICENSE`.
